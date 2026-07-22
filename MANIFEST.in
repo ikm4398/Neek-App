@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include neek_app *.css
+recursive-include neek_app *.csv
+recursive-include neek_app *.html
+recursive-include neek_app *.ico
+recursive-include neek_app *.js
+recursive-include neek_app *.json
+recursive-include neek_app *.md
+recursive-include neek_app *.png
+recursive-include neek_app *.py
+recursive-include neek_app *.svg
+recursive-include neek_app *.txt
+recursive-exclude neek_app *.pyc
