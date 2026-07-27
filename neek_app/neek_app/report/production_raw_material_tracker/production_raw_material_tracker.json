@@ -1,0 +1,119 @@
+{
+ "add_total_row": 0,
+ "columns": [
+  {
+   "fieldname": "Operation",
+   "fieldtype": "Data",
+   "label": "Operation",
+   "width": 150
+  },
+  {
+   "fieldname": "Item Code",
+   "fieldtype": "Data",
+   "label": "Raw Material",
+   "width": 150
+  },
+  {
+   "fieldname": "Remarks",
+   "fieldtype": "Data",
+   "label": "Remarks",
+   "width": 0
+  },
+  {
+   "fieldname": "Serial No",
+   "fieldtype": "Data",
+   "label": "RM Serial",
+   "width": 100
+  },
+  {
+   "fieldname": "Required Quantity",
+   "fieldtype": "Float",
+   "label": "Req Qty",
+   "width": 100
+  },
+  {
+   "fieldname": "Transferred Quantity",
+   "fieldtype": "Float",
+   "label": "Transferred",
+   "width": 100
+  },
+  {
+   "fieldname": "Transferred From Warehouse",
+   "fieldtype": "Data",
+   "label": "Transferred From Warehouse",
+   "width": 0
+  },
+  {
+   "fieldname": "Consumed Quantity",
+   "fieldtype": "Float",
+   "label": "Consumed",
+   "width": 100
+  },
+  {
+   "fieldname": "Excess",
+   "fieldtype": "Float",
+   "label": "Excess",
+   "width": 100
+  },
+  {
+   "fieldname": "Production Item",
+   "fieldtype": "Data",
+   "label": "Production Item",
+   "width": 150
+  },
+  {
+   "fieldname": "pserial",
+   "fieldtype": "Data",
+   "label": "Serial Num",
+   "width": 100
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "label": "Required",
+   "width": 80
+  },
+  {
+   "fieldname": "produced_qty",
+   "fieldtype": "Int",
+   "label": "Production",
+   "width": 80
+  }
+ ],
+ "creation": "2024-04-11 11:41:11.823569",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "production_plan",
+   "fieldtype": "Link",
+   "label": "Production Plan",
+   "mandatory": 1,
+   "options": "Production Plan",
+   "wildcard_filter": 0
+  }
+ ],
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{}",
+ "modified": "2026-07-27 11:14:37.662654",
+ "modified_by": "Administrator",
+ "module": "Neek App",
+ "name": "Production Raw Material Tracker",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT\r\n    woi.operation AS \"Operation\",\r\n    woi.item_code AS \"Item Code\",\r\n    NULL as \"Remarks\",\r\n    (\r\n        SELECT GROUP_CONCAT(DISTINCT sed.serial_no SEPARATOR ', ')\r\n        FROM `tabStock Entry Detail` sed\r\n        JOIN `tabStock Entry` ste ON sed.parent = ste.name\r\n        WHERE ste.work_order = w.name\r\n          AND sed.item_code = woi.item_code\r\n          AND sed.serial_no IS NOT NULL\r\n    ) AS \"Serial No\",\r\n    woi.required_qty AS \"Required Quantity\",\r\n    woi.transferred_qty AS \"Transferred Quantity\",\r\n    (\r\n        SELECT GROUP_CONCAT(DISTINCT sed.s_warehouse SEPARATOR ', ')\r\n        FROM `tabStock Entry Detail` sed\r\n        JOIN `tabStock Entry` ste ON sed.parent = ste.name\r\n        WHERE ste.work_order = w.name\r\n          AND sed.item_code = woi.item_code\r\n          AND ste.purpose = 'Material Transfer for Manufacture'\r\n    ) AS \"Transferred From Warehouse\",\r\n    woi.consumed_qty AS \"Consumed Quantity\",\r\n    (woi.transferred_qty - woi.consumed_qty) AS \"Excess\",\r\n    CASE \r\n        WHEN ROW_NUMBER() OVER (PARTITION BY woi.operation ORDER BY w.idx) = 1 \r\n        THEN w.production_item \r\n    END AS \"production_item\",\r\n    CASE \r\n        WHEN ROW_NUMBER() OVER (PARTITION BY woi.operation ORDER BY w.idx) = 1 \r\n        THEN (\r\n            SELECT GROUP_CONCAT(DISTINCT sed.serial_no SEPARATOR ', ')\r\n            FROM `tabStock Entry Detail` sed\r\n            JOIN `tabStock Entry` ste ON sed.parent = ste.name\r\n            WHERE ste.work_order = w.name\r\n              AND sed.item_code = w.production_item\r\n              AND sed.serial_no IS NOT NULL\r\n        )\r\n    END AS \"pserial\",\r\n    CASE \r\n        WHEN ROW_NUMBER() OVER (PARTITION BY woi.operation ORDER BY w.idx) = 1 \r\n        THEN w.qty \r\n    END AS \"qty\",\r\n    CASE \r\n        WHEN ROW_NUMBER() OVER (PARTITION BY woi.operation ORDER BY w.idx) = 1 \r\n        THEN w.produced_qty \r\n    END AS \"produced_qty\"\r\nFROM `tabWork Order Item` AS woi\r\nJOIN `tabWork Order` AS w ON woi.parent = w.name\r\nWHERE w.production_plan = %(production_plan)s\r\n\r\nUNION ALL\r\n\r\n\r\nSELECT\r\n    CONCAT(wo.operation, ' - Additional') AS \"Operation\",  \r\n    sed.item_code AS \"Item Code\",\r\n    (\r\n    SELECT GROUP_CONCAT(DISTINCT mr_item.remarks SEPARATOR ', ')\r\n    FROM `tabMaterial Request` mr\r\n    JOIN `tabMaterial Request Item` mr_item ON mr_item.parent = mr.name\r\n    WHERE mr.production_plan = wo.production_plan\r\n      AND mr_item.item_code = sed.item_code\r\n      AND mr.material_request_type = 'Material Transfer'\r\n      AND mr.docstatus = 1\r\n    ) AS \"Remarks\",\r\n    GROUP_CONCAT(DISTINCT sed.serial_no SEPARATOR ', ') AS \"Serial No\",\r\n    (\r\n        SELECT IFNULL(SUM(mr_item.qty), 0)\r\n        FROM `tabMaterial Request` mr\r\n        JOIN `tabMaterial Request Item` mr_item ON mr_item.parent = mr.name\r\n        WHERE mr.production_plan = wo.production_plan\r\n          AND mr_item.item_code = sed.item_code\r\n          AND mr.material_request_type = 'Material Transfer'\r\n          AND mr.docstatus = 1\r\n    ) AS \"Required Quantity\",\r\n    SUM(sed.qty) AS \"Transferred Quantity\",\r\n    GROUP_CONCAT(DISTINCT sed.s_warehouse SEPARATOR ', ') AS \"Transferred From Warehouse\",\r\n    (\r\n        SELECT IFNULL(SUM(si.qty), 0)\r\n        FROM `tabStock Entry` se\r\n        JOIN `tabStock Entry Detail` si ON si.parent = se.name\r\n        WHERE se.work_order = ste.work_order\r\n          AND se.purpose = 'Manufacture'\r\n          AND se.docstatus = 1\r\n          AND si.item_code = sed.item_code\r\n    ) AS \"Consumed Quantity\",\r\n    SUM(sed.qty) - (\r\n        SELECT IFNULL(SUM(si.qty), 0)\r\n        FROM `tabStock Entry` se\r\n        JOIN `tabStock Entry Detail` si ON si.parent = se.name\r\n        WHERE se.work_order = ste.work_order\r\n          AND se.purpose = 'Manufacture'\r\n          AND se.docstatus = 1\r\n          AND si.item_code = sed.item_code\r\n    ) AS \"Excess\",\r\n    NULL AS \"production_item\",\r\n    NULL AS \"pserial\",\r\n    NULL AS \"qty\",\r\n    NULL AS \"produced_qty\"\r\nFROM `tabStock Entry Detail` sed\r\nJOIN `tabStock Entry` ste ON sed.parent = ste.name\r\nJOIN `tabWork Order` wo ON wo.name = ste.work_order\r\nLEFT JOIN `tabWork Order Item` woi \r\n    ON woi.parent = ste.work_order \r\n    AND woi.item_code = sed.item_code\r\nWHERE ste.work_order IN (\r\n    SELECT name FROM `tabWork Order` WHERE production_plan = %(production_plan)s\r\n)\r\nAND woi.item_code IS NULL\r\nAND ste.purpose = 'Material Transfer for Manufacture'\r\nAND ste.docstatus = 1\r\nGROUP BY sed.item_code, wo.operation\r\nORDER BY \r\n    SUBSTRING_INDEX(`Operation`, ' - Additional', 1) ASC,\r\n    CASE WHEN `Operation` LIKE '%%- Additional' THEN 1 ELSE 0 END ASC,\r\n    `Item Code` ASC;\r\n\r\n\r\n",
+ "ref_doctype": "Work Order Item",
+ "report_name": "Production Raw Material Tracker",
+ "report_type": "Query Report",
+ "roles": [
+  {
+   "role": "Manufacturing User"
+  },
+  {
+   "role": "Stock User"
+  }
+ ]
+}

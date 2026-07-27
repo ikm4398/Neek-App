@@ -1,0 +1,48 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2025-10-09 15:10:18.835847",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "mandatory": 1,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "mandatory": 1,
+   "wildcard_filter": 0
+  }
+ ],
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-07-27 11:11:45.497311",
+ "modified_by": "Administrator",
+ "module": "Neek App",
+ "name": "Production Stock Tracker",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT \r\n    i.item_name,\r\n    i.name AS item_code,\r\n    i.stock_uom,\r\n\r\n    COALESCE(SUM(sle_open.qty_after_transaction), 0) AS opening_balance,\r\n\r\n    COALESCE((\r\n        SELECT SUM(mdpi.qty)\r\n        FROM `tabMaterial Demand Purchase Item` mdpi\r\n        JOIN `tabMaterial Request Purchase` mdp ON mdpi.parent = mdp.name\r\n        WHERE mdpi.item_code = i.name \r\n          AND mdp.transaction_date BETWEEN %(from_date)s AND %(to_date)s \r\n          AND mdp.docstatus = 1\r\n    ), 0) AS total_demanded_qty,\r\n\r\n    COALESCE((\r\n        SELECT SUM(poi.qty)\r\n        FROM `tabPurchase Order Item` poi\r\n        JOIN `tabPurchase Order` po ON poi.parent = po.name\r\n        WHERE poi.item_code = i.name \r\n          AND po.docstatus = 1 \r\n          AND po.transaction_date BETWEEN %(from_date)s AND %(to_date)s\r\n    ), 0) AS total_ordered_qty,\r\n\r\n    COALESCE((\r\n        SELECT SUM(pri.qty)\r\n        FROM `tabPurchase Receipt Item` pri\r\n        JOIN `tabPurchase Receipt` pr ON pri.parent = pr.name\r\n        WHERE pri.item_code = i.name \r\n          AND pr.docstatus = 1 \r\n          AND pr.posting_date BETWEEN %(from_date)s AND %(to_date)s\r\n    ), 0) AS total_received_qty,\r\n\r\n    COALESCE(SUM(sle_close.qty_after_transaction), 0) AS closing_balance\r\n\r\nFROM `tabItem` i\r\n\r\nLEFT JOIN (\r\n    SELECT sle1.item_code, sle1.warehouse, sle1.qty_after_transaction\r\n    FROM `tabStock Ledger Entry` sle1\r\n    JOIN (\r\n        SELECT item_code, warehouse, MAX(posting_date) AS max_date\r\n        FROM `tabStock Ledger Entry`\r\n        WHERE posting_date < %(from_date)s AND is_cancelled = 0\r\n        GROUP BY item_code, warehouse\r\n    ) AS t_open \r\n    ON sle1.item_code = t_open.item_code \r\n       AND sle1.warehouse = t_open.warehouse \r\n       AND sle1.posting_date = t_open.max_date\r\n    WHERE sle1.is_cancelled = 0\r\n) AS sle_open ON sle_open.item_code = i.name\r\n\r\nLEFT JOIN (\r\n    SELECT sle2.item_code, sle2.warehouse, sle2.qty_after_transaction\r\n    FROM `tabStock Ledger Entry` sle2\r\n    JOIN (\r\n        SELECT item_code, warehouse, MAX(posting_date) AS max_date\r\n        FROM `tabStock Ledger Entry`\r\n        WHERE posting_date <= %(to_date)s AND is_cancelled = 0\r\n        GROUP BY item_code, warehouse\r\n    ) AS t_close \r\n    ON sle2.item_code = t_close.item_code \r\n       AND sle2.warehouse = t_close.warehouse \r\n       AND sle2.posting_date = t_close.max_date\r\n    WHERE sle2.is_cancelled = 0\r\n) AS sle_close ON sle_close.item_code = i.name\r\n\r\nWHERE i.name IN (\r\n    SELECT DISTINCT mdpi.item_code\r\n    FROM `tabMaterial Demand Purchase Item` mdpi\r\n    JOIN `tabMaterial Request Purchase` mdp ON mdpi.parent = mdp.name\r\n    WHERE mdp.transaction_date BETWEEN %(from_date)s AND %(to_date)s\r\n)\r\nGROUP BY i.item_name, i.name, i.stock_uom\r\nORDER BY i.item_name;\r\n",
+ "ref_doctype": "Bin",
+ "report_name": "Production Stock Tracker",
+ "report_type": "Query Report",
+ "roles": [
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "Purchase User"
+  },
+  {
+   "role": "Stock User"
+  }
+ ]
+}
